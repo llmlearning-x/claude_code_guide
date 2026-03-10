@@ -85,19 +85,25 @@ nvm use --lts
 ## 3. 部署代码
 
 ### 3.1 获取项目代码
-我们将代码克隆到 `/var/www` 目录下（或者你喜欢的其他位置）。
+我们将代码克隆到 `/var/www` 目录下。为了避免权限问题，我们需要先修改目录所有权。
 
 ```bash
-# 创建目录并赋予权限 (假设当前是 root，或者使用 sudo)
-mkdir -p /var/www
+# 1. 创建目录 (使用 sudo，因为 /var 通常归 root 所有)
+sudo mkdir -p /var/www
+
+# 2. 将目录所有权交给 deployer 用户
+# 这一步非常重要！否则后续 git clone 和 npm install 会报 Permission denied
+sudo chown -R deployer:deployer /var/www
+
+# 3. 进入目录
 cd /var/www
 
-# 克隆代码库
-git clone https://github.com/your-repo/claude-code-guide.git
+# 4. 克隆代码库 (不需要 sudo)
+git clone https://github.com/llmlearning-x/claude_code_guide.git
 # 或者使用 SSH (需先配置 Deploy Key)
 # git clone git@github.com:your-repo/claude-code-guide.git
 
-cd claude-code-guide
+cd claude_code_guide
 ```
 
 ### 3.2 安装依赖与构建
@@ -130,7 +136,7 @@ sudo vim /etc/nginx/conf.d/claude-guide.conf
 ```nginx
 server {
     listen 80;
-    server_name _; # 如果有域名，请替换为域名，如 guide.example.com
+    server_name llmlearning.org.cn www.llmlearning.org.cn;
 
     # 网站根目录指向构建生成的 dist 目录
     # 请根据实际路径修改，例如 /var/www/claude-code-guide/site/dist
@@ -166,6 +172,13 @@ sudo systemctl reload nginx
 ```
 
 此时，访问服务器的公网 IP，应该就能看到部署好的《Claude Code 工程实践》了！
+
+### 4.3 配置 HTTPS
+
+```bash
+# 自动获取证书并配置 Nginx
+sudo certbot --nginx -d llmlearning.org.cn -d www.llmlearning.org.cn
+```
 
 ## 5. 持续更新
 
