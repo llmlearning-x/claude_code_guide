@@ -1,51 +1,53 @@
 ---
-title: 实战指南：阿里云 ECS 部署流程
+title: 实战指南：将本书部署到阿里云 ECS
 ---
 
-# 实战指南：阿里云 ECS 部署流程
+# 实战指南：将本书部署到阿里云 ECS
 
 ![阿里云 ECS 部署](../images/practices-backend-ops-cover.png)
 
-本文档将手把手带你完成从零开始配置阿里云 ECS 服务器，并将 Web 应用（以 Node.js 为例）部署上线的完整流程。
+本文档将介绍如何将《Claude Code 工程实践》这本书（基于 VitePress 构建的静态网站）部署到阿里云 ECS 服务器上，让读者可以通过公网访问。
 
 ## 1. 服务器准备
 
 ### 1.1 选购 ECS 实例
-对于个人开发者或小型项目，推荐以下配置：
-- **计费方式**：包年包月（长期更划算）或按量付费（测试用）。
-- **地域**：选择距离目标用户最近的节点（如华东 1 杭州）。
-- **实例规格**：2 vCPU / 2 GiB (e.g., ecs.t6-c1m1.large) 起步即可。
+对于静态文档网站，资源消耗非常低，入门级配置即可：
+- **计费方式**：包年包月（长期）或按量付费（测试）。
+- **地域**：建议选择华东 1（杭州）或华北 2（北京）。
+- **实例规格**：1 vCPU / 1 GiB (如 ecs.t6-c1m1.large) 足够。
 - **操作系统**：Alibaba Cloud Linux 3 或 Ubuntu 22.04 LTS。
-- **公网 IP**：分配公网 IPv4 地址，带宽选择 "按使用流量"（峰值带宽可设高一点，如 100Mbps）。
+- **公网 IP**：需要分配公网 IP，带宽建议 3Mbps 以上（静态资源加载更快）。
 
-### 1.2 配置安全组（防火墙）
-在购买过程中或控制台的“网络与安全” -> “安全组”中，开放以下端口：
-- **22 (SSH)**: 用于远程连接（建议仅对你的 IP 开放）。
-- **80 (HTTP)**: Web 服务默认端口。
-- **443 (HTTPS)**: 加密 Web 服务端口。
-- **3000-9000 (可选)**: 如果你的应用直接暴露端口测试，需临时开放。
+### 1.2 配置安全组
+在阿里云控制台开放以下端口：
+- **22 (SSH)**: 用于远程连接。
+- **80 (HTTP)**: Web 服务端口。
+- **443 (HTTPS)**: 如果需要 HTTPS 访问。
 
-## 2. 系统初始化
+## 2. 环境初始化
 
-### 2.1 远程连接
-使用终端（macOS/Linux）或 PowerShell（Windows）连接服务器：
-
+### 2.1 登录服务器
 ```bash
 ssh root@<你的公网IP>
-# 输入密码登录
 ```
 
-### 2.2 更新系统与安装基础工具
-登录后，首先更新软件包列表：
+### 2.2 安装 Nginx
+Nginx 是高性能的 Web 服务器，非常适合托管静态网站。
 
 ```bash
 # Ubuntu
-apt update && apt upgrade -y
-apt install -y git curl wget vim unzip
+sudo apt update
+sudo apt install -y nginx git
 
 # Alibaba Cloud Linux / CentOS
-yum update -y
-yum install -y git curl wget vim unzip
+sudo yum update -y
+sudo yum install -y nginx git
+```
+
+启动 Nginx 并设置开机自启：
+```bash
+sudo systemctl start nginx
+sudo systemctl enable nginx
 ```
 
 ### 2.3 创建非 root 用户 (推荐)
@@ -56,110 +58,75 @@ yum install -y git curl wget vim unzip
 adduser deployer
 # 设置密码
 passwd deployer
+
 # 赋予 sudo 权限
 # Ubuntu 系统
 usermod -aG sudo deployer
 # Alibaba Cloud Linux / CentOS 系统 (使用 wheel 组)
 usermod -aG wheel deployer
+
 # 切换用户
 su - deployer
 ```
 
-## 3. 环境搭建 (Node.js + Nginx)
-
-### 3.1 安装 Node.js (使用 nvm)
-推荐使用 nvm 管理 Node 版本：
+### 2.4 安装 Node.js (用于构建)
+虽然 Nginx 只负责托管静态文件，但我们需要 Node.js 来运行构建命令。
 
 ```bash
 # 安装 nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
-
-# 重新加载配置
 source ~/.bashrc
 
-# 安装 LTS 版本 Node.js
+# 安装 Node.js LTS
 nvm install --lts
 nvm use --lts
-
-# 验证
-node -v
-npm -v
 ```
 
-### 3.2 安装 PM2 (进程管理)
-PM2 用于保持 Node 应用在后台运行，并支持自动重启。
+## 3. 部署代码
+
+### 3.1 获取项目代码
+我们将代码克隆到 `/var/www` 目录下。为了避免权限问题，我们需要先修改目录所有权。
 
 ```bash
-npm install -g pm2
+# 1. 创建目录 (使用 sudo，因为 /var 通常归 root 所有)
+sudo mkdir -p /var/www
+
+# 2. 将目录所有权交给 deployer 用户
+# 这一步非常重要！否则后续 git clone 和 npm install 会报 Permission denied
+sudo chown -R deployer:deployer /var/www
+
+# 3. 进入目录
+cd /var/www
+
+# 4. 克隆代码库 (不需要 sudo)
+git clone https://github.com/llmlearning-x/claude_code_guide.git
+
+cd claude_code_guide
 ```
 
-### 3.3 安装 Nginx (Web 服务器)
+### 3.2 安装依赖与构建
+本书的源码位于 `docs` 目录，但构建配置在 `site` 目录。
 
 ```bash
-# Ubuntu
-sudo apt install -y nginx
+# 进入 site 目录
+cd site
 
-# Alibaba Cloud Linux
-sudo yum install -y nginx
-
-# 启动并设置开机自启
-sudo systemctl start nginx
-sudo systemctl enable nginx
-```
-
-此时访问服务器 IP，应能看到 Nginx 欢迎页面。
-
-## 4. 部署应用
-
-### 4.1 获取代码
-假设你的代码在 GitHub/GitLab 上：
-
-```bash
-# 生成部署密钥 (如果项目是私有的)
-ssh-keygen -t ed25519 -C "deploy@server"
-cat ~/.ssh/id_ed25519.pub
-# -> 将公钥添加到 GitHub/GitLab 的 Deploy Keys 中
-
-# 克隆代码
-mkdir -p ~/apps
-cd ~/apps
-git clone git@github.com:yourname/your-repo.git
-cd your-repo
-```
-
-### 4.2 安装依赖与构建
-
-```bash
 # 安装依赖
 npm install
 
-# 如果是构建型项目 (如 Next.js, Vue/React SSR)
-npm run build
+# 执行构建
+npm run docs:build
 ```
 
-### 4.3 启动应用
-使用 PM2 启动服务：
+构建完成后，静态文件会生成在 `site/dist` 目录下。
+
+## 4. 配置 Nginx
+
+### 4.1 创建站点配置
+新建一个 Nginx 配置文件：
 
 ```bash
-# 假设入口文件是 app.js 或 server.js
-pm2 start app.js --name "my-app"
-
-# 或者运行 npm 脚本
-pm2 start npm --name "my-app" -- run start
-
-# 保存当前进程列表，以便重启后自动恢复
-pm2 save
-pm2 startup
-# (根据提示运行生成的命令)
-```
-
-## 5. 配置 Nginx 反向代理与 HTTPS
-
-### 5.1 配置反向代理
-编辑 Nginx 配置文件：
-
-```bash
-sudo vim /etc/nginx/conf.d/my-app.conf
+sudo vim /etc/nginx/conf.d/claude-guide.conf
 ```
 
 写入以下内容：
@@ -167,54 +134,101 @@ sudo vim /etc/nginx/conf.d/my-app.conf
 ```nginx
 server {
     listen 80;
-    server_name example.com www.example.com; # 替换为你的域名
+    server_name llmlearning.org.cn www.llmlearning.org.cn;
+
+    # 网站根目录指向构建生成的 dist 目录
+    root /var/www/claude_code_guide/site/dist;
+    index index.html;
+
+    # 开启 Gzip 压缩，加速访问
+    gzip on;
+    gzip_min_length 1k;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css text/javascript application/json application/javascript application/x-javascript application/xml;
 
     location / {
-        proxy_pass http://127.0.0.1:3000; # 替换为你应用的端口
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # 缓存静态资源
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+        expires 30d;
+        add_header Cache-Control "public, no-transform";
     }
 }
 ```
 
-测试并重载 Nginx：
+*注意：如果 `/etc/nginx/nginx.conf` 中包含了 default server 配置，可能需要先移除或修改它，避免冲突。*
+
+### 4.2 重载 Nginx
+检查配置是否正确并重启：
 
 ```bash
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### 5.2 配置 HTTPS (Certbot)
-使用 Certbot 免费申请 Let's Encrypt 证书。
+此时，访问服务器的公网 IP，应该就能看到部署好的《Claude Code 工程实践》了！
+
+### 4.3 配置 HTTPS
 
 ```bash
-# Ubuntu
-sudo apt install -y certbot python3-certbot-nginx
-
-# Alibaba Cloud Linux (可能需要启用 EPEL)
-sudo yum install -y certbot python3-certbot-nginx
-
 # 自动获取证书并配置 Nginx
-sudo certbot --nginx -d example.com -d www.example.com
+sudo certbot --nginx -d llmlearning.org.cn -d www.llmlearning.org.cn
 ```
 
-按照提示输入邮箱并同意协议。Certbot 会自动修改 Nginx 配置以启用 HTTPS。
+## 5. 持续更新
 
-## 6. 常用运维命令速查
+当书稿内容有更新时，只需在服务器上执行：
 
-- **查看应用日志**: `pm2 logs my-app`
-- **重启应用**: `pm2 restart my-app`
-- **查看 Nginx 状态**: `sudo systemctl status nginx`
-- **查看服务器资源**: `htop` (需安装: `sudo apt install htop`)
-- **查看磁盘空间**: `df -h`
+```bash
+cd /var/www/claude_code_guide/site
+git pull
+npm install # 如果依赖有变化
+npm run docs:build
+```
 
-## 7. 下一步：CI/CD 自动化
-手动部署虽然稳健，但繁琐。你可以考虑：
-1.  **GitHub Actions**: 编写 `.github/workflows/deploy.yml`，在 push 代码时自动 SSH 到服务器执行 `git pull && pm2 restart`。
-2.  **Docker**: 将应用容器化，使用 Docker Compose 一键启动。
+无需重启 Nginx，刷新浏览器即可看到最新内容。
 
----
-*注：本文档中的命令以 Ubuntu/Debian 为主，Alibaba Cloud Linux/CentOS 请替换相应的包管理器命令 (apt -> yum/dnf)。*
+## 6. 进阶：自动化部署 (GitHub Actions)
+
+为了避免每次都要手动 SSH 上去构建，可以配置 GitHub Actions。
+
+在项目根目录创建 `.github/workflows/deploy.yml`：
+
+```yaml
+name: Deploy to Aliyun ECS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Build
+        run: |
+          cd site
+          npm install
+          npm run docs:build
+
+      - name: Deploy to Server
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          source: "site/dist/*"
+          target: "/var/www/claude_code_guide/site/dist"
+          strip_components: 2 # 根据实际路径层级调整
+```
+
+这样，每次 push 代码，GitHub 就会自动帮你构建并将最新的静态文件传输到服务器上。
