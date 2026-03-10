@@ -1,0 +1,27 @@
+# Node.js
+node_modules/
+dist/
+npm-debug.log
+yarn-error.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+.trae/
+
+# Build output
+site/dist/
+site/.vitepress/dist/
+site/.vitepress/cache/

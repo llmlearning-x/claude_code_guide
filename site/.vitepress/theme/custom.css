@@ -1,0 +1,41 @@
+.home-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-top: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.home-hero-text h1 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+}
+
+.home-hero-text p {
+  margin: 0.25rem 0;
+  color: var(--vp-c-text-2);
+}
+
+.home-hero-meta {
+  font-size: 0.9rem;
+  color: var(--vp-c-text-2);
+  margin-top: 0.5rem;
+}
+
+.home-hero-cover img {
+  max-width: 260px;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.3);
+}
+
+@media (max-width: 768px) {
+  .home-hero {
+    flex-direction: column-reverse;
+    align-items: flex-start;
+  }
+
+  .home-hero-cover img {
+    max-width: 220px;
+  }
+}

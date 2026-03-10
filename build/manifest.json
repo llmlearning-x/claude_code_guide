@@ -1,0 +1,25 @@
+{
+  "id": "claude-code-engineering",
+  "title": "Claude Code 工程实践（预出版）",
+  "subtitle": "从 Agent 到 Skill 与 MCP 的系统指南",
+  "version": "0.1.0-draft",
+  "language": "zh-CN",
+  "abstract": "本书系统介绍如何在工程实践中使用 Claude Code，重点覆盖 Agent 模式、Skill 体系与 MCP 集成，并配套完整示例与实战项目。",
+  "authors": [
+    "你的名字"
+  ],
+  "keywords": [
+    "Claude Code",
+    "Skill",
+    "MCP",
+    "AI 编程",
+    "工程实践"
+  ],
+  "license": "CC BY-NC-SA 4.0",
+  "homepage": "https://your-preprint-site.example.com/books/claude-code-engineering",
+  "buildTime": "2026-03-09T18:07:24.317Z",
+  "files": {
+    "htmlRoot": "html/index.html",
+    "pdf": "pdf/claude-code-engineering-v0.1.0.pdf"
+  }
+}

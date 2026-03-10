@@ -1,0 +1,16 @@
+{
+  "name": "claude-code-book-site",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "docs:dev": "vitepress dev .",
+    "docs:build": "vitepress build .",
+    "docs:preview": "vitepress preview ."
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-mermaid": "^1.0.2",
+    "mermaid": "^9.4.0",
+    "vue": "^3.3.0"
+  }
+}

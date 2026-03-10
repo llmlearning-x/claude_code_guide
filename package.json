@@ -1,0 +1,16 @@
+{
+  "name": "claude-code-book",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:html": "bash scripts/build-html.sh",
+    "build:manifest": "node scripts/build-manifest.js",
+    "build": "npm run build:html && npm run build:manifest",
+    "preview": "cd site && npm run docs:build && npm run docs:preview"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2",
+    "vitepress": "^1.6.4"
+  }
+}
